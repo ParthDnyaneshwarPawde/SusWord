@@ -14,6 +14,7 @@ const screens = {
   CLUE_ROUND: ClueRound,
   CLUE_REVEAL: ClueReveal,
   VOTING: Voting,
+  ROUND_CONTINUE: Result,
   RESULT: Result,
 }
 

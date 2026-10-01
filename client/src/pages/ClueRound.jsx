@@ -72,7 +72,11 @@ export default function ClueRound() {
         </h2>
         {!clueRoundComplete && (
           <p className={`text-[13px] font-bold tracking-wide mt-2 ${isImposter ? 'text-danger/90' : 'text-accent/90'}`}>
-            {isImposter ? "Fake it. You don't know the word" : "Give a clue without revealing too much"}
+            {roundData?.eliminatedPlayers?.includes(currentPlayerId) 
+              ? "You are eliminated. Observe the remaining players."
+              : isImposter 
+                ? "Fake it. You don't know the word" 
+                : "Give a clue without revealing too much"}
           </p>
         )}
       </div>

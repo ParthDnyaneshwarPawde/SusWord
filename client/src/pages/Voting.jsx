@@ -8,14 +8,18 @@ export default function Voting() {
   const [selectedId, setSelectedId] = useState(null)
   const [hasVoted, setHasVoted] = useState(false)
 
-  const otherPlayers = players.filter(p => p.id !== currentPlayerId)
+  const isEliminated = roundData?.eliminatedPlayers?.includes(currentPlayerId)
+  const otherPlayers = players.filter(p => 
+    p.id !== currentPlayerId && 
+    !(roundData?.eliminatedPlayers?.includes(p.id))
+  )
   const votedCount = roundData?.votedCount || 0
-  const totalCount = roundData?.totalCount || players.length
+  const totalCount = roundData?.totalCount || otherPlayers.length + 1
 
-  const isTransitioning = hasVoted && votedCount === totalCount;
+  const isTransitioning = (hasVoted || isEliminated) && votedCount === totalCount;
 
   const handleVote = () => {
-    if (selectedId && !hasVoted) {
+    if (selectedId && !hasVoted && !isEliminated) {
       setHasVoted(true)
       actions.submitVote(selectedId)
     }
@@ -29,9 +33,11 @@ export default function Voting() {
           Voting Round
         </p>
         <p className="text-sm text-text-muted">
-          {hasVoted
-            ? `Waiting for others to vote...`
-            : 'Who do you think is the imposter?'
+          {isEliminated
+            ? 'You were eliminated. Waiting for others to vote...'
+            : hasVoted
+              ? `Waiting for others to vote...`
+              : 'Who do you think is the imposter?'
           }
         </p>
       </div>
@@ -42,11 +48,11 @@ export default function Voting() {
           const isSelected = selectedId === player.id
           return (
             <Card3D
-              as="button"
+              as={isEliminated ? "div" : "button"}
               key={player.id}
               id={`vote-player-${player.id}`}
-              disabled={hasVoted}
-              onClick={() => !hasVoted && setSelectedId(player.id)}
+              disabled={hasVoted || isEliminated}
+              onClick={() => !hasVoted && !isEliminated && setSelectedId(player.id)}
               className={`w-full flex items-center gap-3.5 text-left px-4 py-3.5 ${
                 isSelected ? 'player-card--selected' : ''
               }`}
@@ -106,6 +112,7 @@ export default function Voting() {
       {/* Action Area */}
       <div className="flex flex-col gap-3">
         {/* Confirm vote button */}
+        {!isEliminated && (
         <button
           id="confirm-vote-btn"
           disabled={!selectedId || hasVoted}
@@ -150,6 +157,7 @@ export default function Voting() {
             )}
           </span>
         </button>
+        )}
 
         {/* Vote Progress / Waiting state */}
         <div

@@ -6,6 +6,7 @@ export const GAME_STATES = {
   REVEAL: 'REVEAL',       // Showing secret words/roles
   CLUE_ROUND: 'CLUE_ROUND', // Players giving clues (turn-based)
   VOTING: 'VOTING',       // Selecting the imposter
+  ROUND_CONTINUE: 'ROUND_CONTINUE', // Mid-game round results (tie or civilian eliminated)
   RESULT: 'RESULT',       // Final outcome reveal
 };
 

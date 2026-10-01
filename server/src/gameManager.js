@@ -134,7 +134,7 @@ function submitClue(room, socketId, clueText) {
   rd.currentTurnIdx++
   if (rd.currentTurnIdx >= rd.turnOrder.length) {
     rd.clueRoundComplete = true
-    room.gameState = 'VOTING'
+    // Delayed state transition will be handled in index.js
   }
 
   return { success: true, clueRoundComplete: rd.clueRoundComplete }
@@ -167,7 +167,7 @@ function handleClueDisconnect(room, disconnectedId) {
 
   if (rd.currentTurnIdx >= rd.turnOrder.length) {
     rd.clueRoundComplete = true
-    room.gameState = 'VOTING'
+    // Delayed state transition will be handled in index.js
   }
   return true
 }
@@ -186,15 +186,20 @@ function submitVote(room, voterId, targetId) {
   // Cannot vote for yourself
   if (voterId === targetId) return { error: 'Cannot vote for yourself' }
 
-  // Target must be a valid player
+  // Cannot vote if eliminated
+  if (rd.eliminatedPlayers && rd.eliminatedPlayers.includes(voterId)) return { error: 'Eliminated players cannot vote' }
+
+  // Target must be a valid active player
   if (!room.players.some(p => p.id === targetId)) return { error: 'Invalid target' }
+  if (rd.eliminatedPlayers && rd.eliminatedPlayers.includes(targetId)) return { error: 'Target is already eliminated' }
 
   rd.votes[voterId] = targetId
   rd.votedPlayers.push(voterId)
 
-  const allVoted = rd.votedPlayers.length >= room.players.length
+  const activePlayerCount = room.players.filter(p => !(rd.eliminatedPlayers || []).includes(p.id)).length
+  const allVoted = rd.votedPlayers.length >= activePlayerCount
 
-  return { success: true, allVoted, votedCount: rd.votedPlayers.length, totalCount: room.players.length }
+  return { success: true, allVoted, votedCount: rd.votedPlayers.length, totalCount: activePlayerCount }
 }
 
 /**
@@ -217,41 +222,62 @@ function resolveVotes(room) {
 
   let votedOutId = null
   let imposterCaught = false
+  let gameOver = false
+
+  // Initialize eliminated players if not present
+  if (!rd.eliminatedPlayers) rd.eliminatedPlayers = []
 
   // If there's a tie for the highest votes (and more than 0 votes cast), no one is eliminated
   if (tied.length > 1 || maxVotes === 0) {
     votedOutId = null
     imposterCaught = false
-    rd.winner = 'IMPOSTER' // On tie or no votes, imposter survives and wins
+    // No one eliminated, round continues
   } else {
     votedOutId = tied[0]
     imposterCaught = votedOutId === rd.imposterId
 
     if (imposterCaught) {
       // Imposter caught — they get a chance to guess the main word
+      gameOver = true
       rd.winner = null
     } else {
-      // Civilian voted out — imposter wins immediately
-      rd.winner = 'IMPOSTER'
+      // Civilian voted out
+      rd.eliminatedPlayers.push(votedOutId)
+      
+      const activePlayers = room.players.filter(p => !rd.eliminatedPlayers.includes(p.id))
+      
+      // Imposter wins if only 2 players remain (imposter + 1 civilian)
+      if (activePlayers.length <= 2) {
+        gameOver = true
+        rd.winner = 'IMPOSTER'
+      }
     }
   }
 
   rd.votedOutId = votedOutId
   rd.voteTally = tally
-  room.gameState = 'RESULT'
+  
+  if (gameOver) {
+    room.gameState = 'RESULT'
+  } else {
+    room.gameState = 'ROUND_CONTINUE'
+  }
 
   return {
+    gameState: room.gameState,
     votedOutId,
     voteTally: tally,
     imposterCaught,
-    imposterId: rd.imposterId,
+    imposterId: gameOver ? rd.imposterId : null,
     winner: rd.winner,
-    wordPair: rd.wordPair,
+    wordPair: gameOver ? rd.wordPair : null,
+    eliminatedPlayers: rd.eliminatedPlayers,
     players: room.players.map(p => ({
       id: p.id,
       name: p.name,
       isHost: p.id === room.hostId,
-      isImposter: p.id === rd.imposterId,
+      // Only reveal imposter if game is over!
+      isImposter: gameOver ? (p.id === rd.imposterId) : undefined,
     })),
   }
 }
@@ -279,6 +305,29 @@ function submitFinalGuess(room, guess) {
   }
 }
 
+function startNextClueRound(room) {
+  const rd = room.roundData
+  if (!rd || room.gameState !== 'ROUND_CONTINUE') return null
+
+  // Reset clue round & voting state
+  rd.clues = []
+  rd.votes = {}
+  rd.votedPlayers = []
+  rd.votedOutId = null
+  rd.voteTally = null
+  rd.currentTurnIdx = 0
+  rd.clueRoundComplete = false
+  
+  // Update turn order to only include active (not eliminated) players
+  rd.turnOrder = room.players
+    .filter(p => !rd.eliminatedPlayers.includes(p.id))
+    .map(p => p.id)
+    .sort(() => Math.random() - 0.5)
+
+  room.gameState = 'CLUE_ROUND'
+  return getClueRoundState(room)
+}
+
 module.exports = {
   startRound,
   getPlayerRevealData,
@@ -290,5 +339,6 @@ module.exports = {
   resolveVotes,
   submitFinalGuess,
   refillWordPool,
+  startNextClueRound,
 }
 

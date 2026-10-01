@@ -127,7 +127,7 @@ function gameReducer(state, action) {
     case 'VOTE_RESULT':
       return {
         ...state,
-        gameState: GAME_STATES.RESULT,
+        gameState: action.gameState || GAME_STATES.RESULT,
         roundData: {
           ...state.roundData,
           votedOutId: action.votedOutId,
@@ -136,6 +136,7 @@ function gameReducer(state, action) {
           imposterId: action.imposterId,
           winner: action.winner,
           wordPair: action.wordPair,
+          eliminatedPlayers: action.eliminatedPlayers,
         },
         players: action.players || state.players,
       }
@@ -319,6 +320,14 @@ export function GameProvider({ children }) {
     restartRound: useCallback((callback) => {
       const socket = getSocket()
       socket.emit('restart_round', (r) => {
+        if (r?.error) dispatch({ type: 'SET_ERROR', error: r.error })
+        if (callback) callback(r)
+      })
+    }, []),
+
+    startNextRound: useCallback((callback) => {
+      const socket = getSocket()
+      socket.emit('start-next-round', (r) => {
         if (r?.error) dispatch({ type: 'SET_ERROR', error: r.error })
         if (callback) callback(r)
       })

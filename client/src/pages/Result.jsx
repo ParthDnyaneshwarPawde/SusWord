@@ -57,6 +57,21 @@ export default function Result() {
     ? '0 0 24px rgba(244,63,94,0.35)'
     : '0 0 24px rgba(163,230,53,0.35)'
 
+  const isRoundContinue = state.gameState === 'ROUND_CONTINUE'
+  const showResults = winner || isRoundContinue
+
+  const handleNextRound = () => {
+    console.log('🔄 Requesting next round...')
+    setIsRestarting(true)
+
+    actions.startNextRound((response) => {
+      if (response?.error) {
+        console.error('❌ Start next round failed:', response.error)
+        setIsRestarting(false)
+      }
+    })
+  }
+
   return (
     <div>
       {/* Winner announcement */}
@@ -67,6 +82,18 @@ export default function Result() {
             style={{ textShadow: winnerGlow }}
           >
             {winnerLabel}
+          </p>
+        </div>
+      )}
+
+      {/* Round Continue announcement */}
+      {isRoundContinue && (
+        <div className="text-center mb-6">
+          <p className="text-2xl font-extrabold text-accent mb-2">
+            The Game Continues!
+          </p>
+          <p className="text-text-muted text-sm">
+            {votedOutId ? 'An innocent civilian was eliminated.' : 'It was a tie! No one was eliminated.'}
           </p>
         </div>
       )}
@@ -110,8 +137,8 @@ export default function Result() {
         </div>
       )}
 
-      {/* Result details (shown after winner is determined) */}
-      {winner && (
+      {/* Result details */}
+      {showResults && (
         <>
           {/* Voted out info */}
           <div className="card-elevated mb-4 text-center">
@@ -120,7 +147,7 @@ export default function Result() {
             </p>
             <p className="text-xl font-bold">
               {votedOutId ? votedOutPlayer?.name : 'No one was eliminated! (Tie)'}
-              {votedOutId && (
+              {votedOutId && winner && (
                 <span className={`ml-2 badge ${imposterCaught ? 'badge-danger' : 'badge-muted'}`}>
                   {imposterCaught ? 'IMPOSTER' : 'CIVILIAN'}
                 </span>
@@ -137,19 +164,21 @@ export default function Result() {
             )}
           </div>
 
-          {/* Words reveal */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="card text-center"
-                 style={{ boxShadow: '0 0 12px rgba(163,230,53,0.08)' }}>
-              <p className="text-text-muted text-xs mb-1">Main Word</p>
-              <p className="text-lg font-bold text-accent">{wordPair?.mainWord}</p>
+          {/* Words reveal (only if game over) */}
+          {winner && (
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="card text-center"
+                   style={{ boxShadow: '0 0 12px rgba(163,230,53,0.08)' }}>
+                <p className="text-text-muted text-xs mb-1">Main Word</p>
+                <p className="text-lg font-bold text-accent">{wordPair?.mainWord}</p>
+              </div>
+              <div className="card text-center"
+                   style={{ boxShadow: '0 0 12px rgba(244,63,94,0.08)' }}>
+                <p className="text-text-muted text-xs mb-1">Imposter Word</p>
+                <p className="text-lg font-bold text-danger">{wordPair?.imposterWord}</p>
+              </div>
             </div>
-            <div className="card text-center"
-                 style={{ boxShadow: '0 0 12px rgba(244,63,94,0.08)' }}>
-              <p className="text-text-muted text-xs mb-1">Imposter Word</p>
-              <p className="text-lg font-bold text-danger">{wordPair?.imposterWord}</p>
-            </div>
-          </div>
+          )}
 
           {/* All players */}
           <div className="mb-4">
@@ -159,9 +188,10 @@ export default function Result() {
             <div className="flex flex-col gap-2.5">
               {players.map(player => {
                 const votesReceived = voteTally?.[player.id] || 0
-                const isImposter = player.id === imposterId || player.isImposter
+                // ONLY show imposter if game is over. If continuing, no one is revealed as imposter.
+                const isImposter = winner ? (player.id === imposterId || player.isImposter) : false
                 const isMe = player.id === currentPlayerId
-                const isVotedOut = player.id === votedOutId
+                const isVotedOut = player.id === votedOutId || roundData?.eliminatedPlayers?.includes(player.id)
 
                 return (
                   <Card3D
@@ -217,7 +247,7 @@ export default function Result() {
                         )}
                       </p>
                       <p className="text-[10px] text-text-muted mt-0.5">
-                        {isImposter ? 'The Imposter' : isVotedOut ? 'Voted Out' : 'Civilian'}
+                        {isImposter ? 'The Imposter' : isVotedOut ? 'Eliminated' : (winner ? 'Civilian' : 'Unknown')}
                       </p>
                     </div>
 
@@ -235,24 +265,26 @@ export default function Result() {
                           {votesReceived}🗳
                         </div>
                       )}
-                      <div
-                        className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-widest"
-                        style={
-                          isImposter
-                            ? {
-                                background: 'linear-gradient(135deg, rgba(244,63,94,0.2), rgba(244,63,94,0.05))',
-                                color: 'var(--color-danger)',
-                                border: '1px solid rgba(244,63,94,0.3)',
-                              }
-                            : {
-                                background: 'linear-gradient(135deg, rgba(163,230,53,0.15), rgba(163,230,53,0.04))',
-                                color: 'var(--color-accent)',
-                                border: '1px solid rgba(163,230,53,0.22)',
-                              }
-                        }
-                      >
-                        {isImposter ? 'SPY' : 'SAFE'}
-                      </div>
+                      {winner && (
+                        <div
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-widest"
+                          style={
+                            isImposter
+                              ? {
+                                  background: 'linear-gradient(135deg, rgba(244,63,94,0.2), rgba(244,63,94,0.05))',
+                                  color: 'var(--color-danger)',
+                                  border: '1px solid rgba(244,63,94,0.3)',
+                                }
+                              : {
+                                  background: 'linear-gradient(135deg, rgba(163,230,53,0.15), rgba(163,230,53,0.04))',
+                                  color: 'var(--color-accent)',
+                                  border: '1px solid rgba(163,230,53,0.22)',
+                                }
+                          }
+                        >
+                          {isImposter ? 'SPY' : 'SAFE'}
+                        </div>
+                      )}
                     </div>
                   </Card3D>
                 )
@@ -267,14 +299,14 @@ export default function Result() {
               <button
                 id="play-again-btn"
                 className="btn btn-primary"
-                onClick={handleRestart}
+                onClick={isRoundContinue ? handleNextRound : handleRestart}
                 disabled={isRestarting}
               >
-                {isRestarting ? '⌛ Starting...' : '↻ Play Again'}
+                {isRestarting ? '⌛ Starting...' : (isRoundContinue ? 'Next Clue Round' : '↻ Play Again')}
               </button>
             ) : (
               <div className="text-center text-text-muted text-sm py-2 animate-pulse">
-                Waiting for host to start next round...
+                Waiting for host to start {isRoundContinue ? 'next round' : 'new game'}...
               </div>
             )}
             <button

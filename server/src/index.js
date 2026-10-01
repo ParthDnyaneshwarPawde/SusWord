@@ -3,7 +3,7 @@ const http = require('http')
 const { Server } = require('socket.io')
 const cors = require('cors')
 const { createRoom, joinRoom, leaveRoom, getRoom, getRoomBySocketId } = require('./roomManager')
-const { startRound, getPlayerRevealData, setPlayerReady, submitClue, getClueRoundState, handleClueDisconnect, submitVote, resolveVotes, submitFinalGuess } = require('./gameManager')
+const { startRound, getPlayerRevealData, setPlayerReady, submitClue, getClueRoundState, handleClueDisconnect, submitVote, resolveVotes, submitFinalGuess, startNextClueRound } = require('./gameManager')
 
 const PORT = process.env.PORT || 3001
 
@@ -161,16 +161,20 @@ io.on('connection', (socket) => {
 
     // If clue round complete, notify transition to voting
     if (result.clueRoundComplete) {
-      console.log(`🗳️  Clue round complete in ${room.roomCode} — moving to VOTING`)
-      io.to(room.roomCode).emit('clue-round-complete', {
-        gameState: 'VOTING',
-        clues: room.roundData.clues,
-        players: room.players.map(p => ({
-          id: p.id,
-          name: p.name,
-          isHost: p.id === room.hostId,
-        })),
-      })
+      console.log(`🗳️  Clue round complete in ${room.roomCode} — waiting 5 seconds before VOTING`)
+      
+      room.roundData.clueTimer = setTimeout(() => {
+        room.gameState = 'VOTING'
+        io.to(room.roomCode).emit('clue-round-complete', {
+          gameState: 'VOTING',
+          clues: room.roundData.clues,
+          players: room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            isHost: p.id === room.hostId,
+          })),
+        })
+      }, 5000); // 5 second review time
     }
   })
 
@@ -270,6 +274,23 @@ io.on('connection', (socket) => {
     })
   })
 
+  // ── Start Next Clue Round (Intermediate) ─────────────────
+  socket.on('start-next-round', (callback) => {
+    const room = getRoomBySocketId(socket.id)
+    if (!room) return callback?.({ error: 'Room not found' })
+
+    if (room.hostId !== socket.id) return callback?.({ error: 'Only the host can continue' })
+    if (room.gameState !== 'ROUND_CONTINUE') return callback?.({ error: 'Not in intermediate result state' })
+
+    const clueState = startNextClueRound(room)
+    if (!clueState) return callback?.({ error: 'Failed to start next round' })
+
+    console.log(`🔄 [${room.roomCode}] Next clue round started by host ${socket.id}`)
+    callback?.({ success: true })
+
+    io.to(room.roomCode).emit('clue-round-started', clueState)
+  })
+
   // ── Disconnect ───────────────────────────────────────────
   socket.on('disconnect', () => {
     handleDisconnect(socket)
@@ -298,20 +319,34 @@ function handleDisconnect(socket) {
 
       if (room.roundData.clueRoundComplete) {
         clearTimeout(room.roundData.clueTimer);
-        io.to(roomCode).emit('clue-reveal-started', clueState)
+        
+        console.log(`🗳️  Clue round complete (due to disconnect) in ${room.roomCode} — waiting 5 seconds before VOTING`)
+        room.roundData.clueTimer = setTimeout(() => {
+          room.gameState = 'VOTING'
+          io.to(room.roomCode).emit('clue-round-complete', {
+            gameState: 'VOTING',
+            clues: room.roundData.clues,
+            players: room.players.map(p => ({
+              id: p.id,
+              name: p.name,
+              isHost: p.id === room.hostId,
+            })),
+          })
+        }, 5000); // 5 second review time
       }
     }
 
     // Clean up during voting
     if (room.gameState === 'VOTING' && room.roundData) {
-      const allVoted = room.players.every(p => room.roundData.votedPlayers.includes(p.id))
-      if (allVoted) {
+      const activePlayers = room.players.filter(p => !(room.roundData.eliminatedPlayers || []).includes(p.id))
+      const allVoted = activePlayers.every(p => room.roundData.votedPlayers.includes(p.id))
+      if (allVoted && activePlayers.length > 0) {
         const voteResult = resolveVotes(room)
         io.to(roomCode).emit('vote-result', voteResult)
       } else {
         io.to(roomCode).emit('vote-update', {
-          votedCount: room.roundData.votedPlayers.filter(id => room.players.some(p => p.id === id)).length,
-          totalCount: room.players.length,
+          votedCount: room.roundData.votedPlayers.filter(id => activePlayers.some(p => p.id === id)).length,
+          totalCount: activePlayers.length,
         })
       }
     }

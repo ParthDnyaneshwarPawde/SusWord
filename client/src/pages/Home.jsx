@@ -3,7 +3,7 @@ import { useGame } from '../context/GameContext'
 
 export default function Home() {
   const { actions } = useGame()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(() => localStorage.getItem('susword_name') || '')
   const [roomCode, setRoomCode] = useState('')
   const [mode, setMode] = useState(null) // null | 'create' | 'join'
 
@@ -12,6 +12,7 @@ export default function Home() {
 
   const handleCreate = () => {
     if (canCreate) {
+      localStorage.setItem('susword_name', name.trim())
       actions.clearError()
       actions.createRoom(name.trim())
     }
@@ -19,6 +20,7 @@ export default function Home() {
 
   const handleJoin = () => {
     if (canJoin) {
+      localStorage.setItem('susword_name', name.trim())
       actions.clearError()
       actions.joinRoom(name.trim(), roomCode.trim())
     }
