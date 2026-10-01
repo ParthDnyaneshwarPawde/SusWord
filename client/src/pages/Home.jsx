@@ -148,10 +148,15 @@ export default function Home() {
         </div>
       )}
 
-      {/* Connection indicator */}
-      <p className="text-text-muted text-xs mt-8 opacity-60">
-        🌐 Multiplayer — open in multiple tabs to test
-      </p>
+      {/* Footer */}
+      <div className="mt-8 opacity-60">
+        <p className="text-text-muted text-xs">
+          🌐 Multiplayer — open in multiple tabs to test
+        </p>
+        <p className="text-text-muted text-xs mt-2 font-medium">
+          Made by Tururu ✨
+        </p>
+      </div>
     </div>
   )
 }
