@@ -6,6 +6,7 @@ export default function Home() {
   const [name, setName] = useState(() => localStorage.getItem('susword_name') || '')
   const [roomCode, setRoomCode] = useState('')
   const [mode, setMode] = useState(null) // null | 'create' | 'join'
+  const [gameMode, setGameMode] = useState('normal') // 'normal' | 'shuffle'
 
   const canCreate = name.trim().length >= 2
   const canJoin = name.trim().length >= 2 && roomCode.trim().length === 4
@@ -14,7 +15,7 @@ export default function Home() {
     if (canCreate) {
       localStorage.setItem('susword_name', name.trim())
       actions.clearError()
-      actions.createRoom(name.trim())
+      actions.createRoom(name.trim(), gameMode)
     }
   }
 
@@ -83,15 +84,33 @@ export default function Home() {
           <p className="text-text-muted text-sm mb-4">
             You'll be the host of a new room.
           </p>
+
+          <div className="mb-4 text-left">
+            <label className="text-sm font-bold text-text-primary block mb-1">Game Mode</label>
+            <select 
+              className="input text-sm mb-1" 
+              value={gameMode} 
+              onChange={e => setGameMode(e.target.value)}
+            >
+              <option value="normal">Normal Mode</option>
+              <option value="shuffle">Shuffle Mode</option>
+            </select>
+            <p className="text-xs text-text-muted mt-1 leading-snug">
+              {gameMode === 'normal' 
+                ? 'When someone is eliminated, keep the same word pair.' 
+                : 'When someone is eliminated, draw a new word pair.'}
+            </p>
+          </div>
+
           <button
             id="confirm-create-btn"
-            className="btn btn-primary mb-3"
+            className="btn btn-primary mb-3 w-full"
             onClick={handleCreate}
           >
             ✦ Start Room
           </button>
           <button
-            className="btn btn-ghost"
+            className="btn btn-ghost w-full"
             onClick={() => { setMode(null); actions.clearError() }}
           >
             ← Back

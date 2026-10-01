@@ -76,6 +76,12 @@ function gameReducer(state, action) {
         error: null,
       }
 
+    case 'WORD_UPDATE':
+      return {
+        ...state,
+        myWord: action.word,
+      }
+
     case 'READY_UPDATE':
       return {
         ...state,
@@ -203,6 +209,10 @@ export function GameProvider({ children }) {
       dispatch({ type: 'READY_UPDATE', readyCount, totalCount, readyPlayerIds })
     })
 
+    socket.on('word-update', ({ word }) => {
+      dispatch({ type: 'WORD_UPDATE', word })
+    })
+
     socket.on('clue-round-started', (data) => {
       dispatch({ type: 'CLUE_ROUND_STARTED', ...data })
     })
@@ -240,6 +250,7 @@ export function GameProvider({ children }) {
       socket.off('lobby-update')
       socket.off('game-started')
       socket.off('ready-update')
+      socket.off('word-update')
       socket.off('clue-round-started')
       socket.off('clue-round-update')
       socket.off('clue-round-complete')
@@ -252,10 +263,10 @@ export function GameProvider({ children }) {
   }, [])
 
   const actions = {
-    createRoom: useCallback(async (playerName) => {
+    createRoom: useCallback(async (playerName, gameMode = 'normal') => {
       try {
         const socket = await connectSocket()
-        socket.emit('create-room', { playerName }, (response) => {
+        socket.emit('create-room', { playerName, settings: { mode: gameMode } }, (response) => {
           if (response.error) return dispatch({ type: 'SET_ERROR', error: response.error })
           dispatch({
             type: 'ROOM_JOINED',

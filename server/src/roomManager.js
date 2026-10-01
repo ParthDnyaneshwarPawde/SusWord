@@ -11,7 +11,7 @@ const rooms = new Map()           // roomCode → room object
 const socketToRoom = new Map()    // socketId → roomCode (lookup index)
 
 // ── Create Room ────────────────────────────────────────────
-function createRoom(socketId, playerName) {
+function createRoom(socketId, playerName, settings = { mode: 'normal' }) {
   if (!playerName || playerName.trim().length < 2) {
     return { error: 'Name must be at least 2 characters' }
   }
@@ -33,6 +33,7 @@ function createRoom(socketId, playerName) {
     hostId: socketId,
     players: [player],
     gameState: 'LOBBY',
+    settings,
   }
 
   rooms.set(roomCode, room)

@@ -44,8 +44,8 @@ io.on('connection', (socket) => {
   console.log(`⚡ Connected: ${socket.id}`)
 
   // ── Create Room ──────────────────────────────────────────
-  socket.on('create-room', ({ playerName }, callback) => {
-    const result = createRoom(socket.id, playerName)
+  socket.on('create-room', ({ playerName, settings }, callback) => {
+    const result = createRoom(socket.id, playerName, settings)
     if (result.error) return callback({ error: result.error })
 
     const { room, player } = result
@@ -284,6 +284,14 @@ io.on('connection', (socket) => {
 
     const clueState = startNextClueRound(room)
     if (!clueState) return callback?.({ error: 'Failed to start next round' })
+
+    if (room.settings?.mode === 'shuffle') {
+      room.players.forEach(p => {
+        const isImposter = (p.id === room.roundData.imposterId)
+        const word = isImposter ? room.roundData.wordPair.imposterWord : room.roundData.wordPair.mainWord
+        io.to(p.id).emit('word-update', { word })
+      })
+    }
 
     console.log(`🔄 [${room.roomCode}] Next clue round started by host ${socket.id}`)
     callback?.({ success: true })

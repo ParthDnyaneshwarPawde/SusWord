@@ -309,6 +309,10 @@ function startNextClueRound(room) {
   const rd = room.roundData
   if (!rd || room.gameState !== 'ROUND_CONTINUE') return null
 
+  if (room.settings?.mode === 'shuffle') {
+    rd.wordPair = pickWordPair(room)
+  }
+
   // Reset clue round & voting state
   rd.clues = []
   rd.votes = {}
